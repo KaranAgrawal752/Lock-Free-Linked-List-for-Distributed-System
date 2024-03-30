@@ -58,7 +58,7 @@ void* threadFunction(void * args_ptr) {
 
 int main() {
     cout<<"main started\n";
-    int N= 10;
+    int N= 1;
     LockFreeLinkedList* linkedList=new LockFreeLinkedList();
     vector<pthread_t> myThread(N);
     vector<int> oprns(N);//{1,1,1,1,0,0,0,1,1,0};

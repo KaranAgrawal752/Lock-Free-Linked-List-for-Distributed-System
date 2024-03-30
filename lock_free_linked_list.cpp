@@ -66,7 +66,7 @@ void LockFreeLinkedList::HelpFlagged(Node* prevNode, Node* delNode) {
 void LockFreeLinkedList::TryMark(Node* delNode) {
     do{
         auto nextNode=delNode->succ.right;
-        auto result=nextNode->succ;//compareAndSwap(&(delNode->succ),Successor(nextNode,0,0),Successor(nextNode,1,0));
+        auto result=compareAndSwap(&(delNode->succ),Successor(nextNode,0,0),Successor(nextNode,1,0));
         if(result.flag==1){
             HelpFlagged(delNode,result.right);
         }
@@ -78,7 +78,7 @@ std::pair<Node*, bool> LockFreeLinkedList::TryFlag(Node* prevNode, Node* targetN
         if (prevNode->succ.flag == 1) {  //Predecessor is already flagged
             return std::make_pair(prevNode, false);
         }
-        auto result = prevNode->succ;//compareAndSwap(&(prevNode->succ), Successor(targetNode, 0, 0), Successor(targetNode, 0, 1));
+        auto result =compareAndSwap(&(prevNode->succ), Successor(targetNode, 0, 0), Successor(targetNode, 0, 1));
         if (result.right==targetNode && result.mark==0 && result.flag==0) {   //Successful flagging
             return std::make_pair(prevNode, true);
         }
@@ -111,7 +111,8 @@ Node* LockFreeLinkedList::Insert(keytype k, keytype e) {
         }
         else{
             newNode->succ=Successor(); newNode->succ.right=nextNode;newNode->succ.mark=0;newNode->succ.flag=0;
-            auto result=prevNode->succ;//compareAndSwap(&(prevNode->succ),Successor(nextNode,0,0),Successor(newNode,0,0));
+            auto result=compareAndSwap(&(prevNode->succ),Successor(nextNode,0,0),Successor(newNode,0,0));
+            std::cout<<"prevNode "<<prevNode->succ.right<<" nextNode "<<nextNode<<" result "<<result.right<<" newNode "<<newNode<<"\n";
             if(result.right==nextNode && result.mark==0 && result.flag==0){
                 return newNode;
             }

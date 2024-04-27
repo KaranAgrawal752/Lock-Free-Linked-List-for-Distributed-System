@@ -24,15 +24,18 @@ struct ThreadArgs {
 };
 
 void* threadFunction(void * args_ptr) {
+    // cout<<"Debug: entered in thread function\n";
     ThreadArgs* args = static_cast<ThreadArgs*>(args_ptr);
-
     // Accessing univ_obj and invoc_obj from args
     LockFreeLinkedList* linkedList = args->linkedList;
     int id=args->id;
     int oprn=args->oprn;
     keytype key=args->key;
+    // cout<<"Debug started the oprn of thread:"<<id<<"\n";
     if(oprn){
+        // cout<<"Debug: thread:"<<id<<" going to insert the node\n";
         Node * node=linkedList->Insert(key,key);
+        // cout<<"Debug: thread:"<<id<<" inserted the node\n";
         string message;
         if(node){
             message="Thread "+to_string(id)+" successfully inserted the key "+to_string(key)+".";
@@ -58,7 +61,7 @@ void* threadFunction(void * args_ptr) {
 
 int main() {
     cout<<"main started\n";
-    int N= 1;
+    int N= 100;
     LockFreeLinkedList* linkedList=new LockFreeLinkedList();
     vector<pthread_t> myThread(N);
     vector<int> oprns(N);//{1,1,1,1,0,0,0,1,1,0};
@@ -69,21 +72,22 @@ int main() {
     {
         uniform_int_distribution<> dis(0,1); 
         int random_number = dis(gen);
-        oprns[i]=1;//random_number;
+        oprns[i]=random_number;
     }
     for(int i=0;i<N;i++)
     {
         uniform_int_distribution<> dis(1,10); 
         int random_number = dis(gen);
-        keys[i]=1;//random_number;
+        keys[i]=random_number;
     }
+    // cout<<"Debug: Thread calling started\n";
     for (int i = 0; i < N; i++) {
         ThreadArgs* args = new ThreadArgs{linkedList,i,oprns[i],keys[i]};
         if (pthread_create(&myThread[i], nullptr, threadFunction, args)) {
             cerr << "Error creating thread." << endl;
             return 1;
         }
-        // cout<<i<<" ";
+        // cout<<"Debug: the thread:"<<i<<" has been called\n ";
     }
 
     for (int i = 0; i < N; i++) {

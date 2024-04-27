@@ -16,13 +16,54 @@
 
 struct Successor{
     public:
-    struct Node* right=nullptr;
-    bool mark=0;
-    bool flag=0;
+    // struct Node* right=nullptr;
+    // bool mark=0;
+    // bool flag=0;
+    unsigned long long packed_succ=0;
+    void set_right(struct Node *right){
+        // std::cout<<right<<"\n";
+        unsigned long long val=(unsigned long long)right&(~(((unsigned long long)0xffff)<<48));
+        packed_succ|=val;
+        // std::cout<<packed_succ<<"\n";
+    }
+    void set_mark(bool mark){
+        if(mark){
+            packed_succ|=(((unsigned long long)0x0001)<<48);
+        }else{
+            packed_succ&=(~(((unsigned long long)0x0001)<<48));
+        }
+    }
+    void set_flag(bool flag){
+         if(flag){
+            packed_succ|=(((unsigned long long)0x0002)<<48);
+        }else{
+            packed_succ&=(~(((unsigned long long)0x0002)<<48));
+        }
+    }
+    struct Node* get_right()
+    {
+        // std::cout<<packed_succ<<"\n";
+        unsigned long long val=packed_succ&(~(((unsigned long long)0xffff)<<48));
+        return (struct Node*)val;
+    }
+    bool get_mark()
+    {
+        if(packed_succ & (((unsigned long long)0x0001)<<48)) return true;
+        else return false;
+    }
+    bool get_flag()
+    {
+        if(packed_succ & (((unsigned long long)0x0002)<<48)) return true;
+        else return false;
+    }
+
     Successor(Node* ptr,int mrk, int flg){
-        right=ptr;
-        mark=mrk;
-        flag=flg;
+        // right=ptr;
+        // mark=mrk;
+        // flag=flg;
+        set_right(ptr);
+        set_flag(flg);
+        set_mark(mrk);
     }
     Successor(){}
     // bool operator==(const Successor other) const {
@@ -43,60 +84,17 @@ struct Node {
     Node(){}
 };
 
-#include <tuple>
-
-template<typename T1, typename T2, typename T3>
-std::tuple<T1, T2, T3> compareAndSwap2(T1* val1, T2* val2, T3* val3, T1 ov1, T2 ov2, T3 ov3, T1 nv1, T2 nv2, T3 nv3) {
-    T1 old_val1 = ov1;
-    T2 old_val2 = ov2;
-    T3 old_val3 = ov3;
-    bool success = false;
-
-    // Attempt to perform compare-and-swap operation atomically for all three values
+template<typename T>
+T CAS(T* address, T expected, T newValue) {
+    T result;
     asm volatile (
-        "lock cmpxchg %7, %0\n"  // Compare the value at val1 with ov1, if equal, set val1 to nv1
-        "je .val2\n"
-        "jmp .end\n"
-        ".val2:\n"
-        "lock cmpxchg %8, %1\n"  // Compare the value at val2 with ov2, if equal, set val2 to nv2
-        "je .val3\n"
-        "mov %4, %0\n"           // If val2 swap failed, restore val1 to its original value
-        "jmp .end\n"
-        ".val3:\n"
-        "lock cmpxchg %9, %2\n"  // Compare the value at val3 with ov3, if equal, set val3 to nv3
-        "je .done\n"
-        "mov %4, %0\n"           // If val3 swap failed, restore val1 to its original value
-        "mov %5, %1\n"           // If val3 swap failed, restore val2 to its original value
-        "jmp .end\n"
-        ".done:\n"
-        "mov $1, %3\n"           // Set success flag to 1 if all swaps succeeded
-        ".end:\n"
-        : "+m" (*val1), "+m" (*val2), "+m" (*val3), "+r" (success)
-        : "r" (ov1), "r" (ov2), "r" (ov3), "r" (nv1), "r" (nv2), "r" (nv3)
-        : "cc", "memory"
+        "mov %2, %%rax;"
+        "lock cmpxchg %3, %1;"   // Compare and exchange oldVal with the value at address
+        "mov %%rax, %0;"               // Set result to 1 if successful (ZF flag is set), 0 otherwise
+        : "=r" (result), "+m" (*address) // Output operands (result, address)
+        : "r" (expected), "r" (newValue)    // Input operands (oldVal, newVal)
+        : "rax", "memory"          // Clobbers (condition codes and memory)
     );
-
-    // If all compare-and-swap operations were successful, return old values, else return current values
-    if (success) {
-        std::cout<<"*******************************";
-        std::cout<<*val1<<"  a "<<ov1<<"  b  "<<nv1<<"  c  ";
-        std::cout<<*val2<<"  a "<<ov2<<"  b  "<<nv2<<"  c  ";
-        std::cout<<*val3<<"  a "<<ov3<<"  b  "<<nv3<<"  c  ";
-        return std::make_tuple(ov1, ov2, ov3);
-    } else {
-        // std::cout<<"&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&";
-        // std::cout<<*val1<<"  a "<<ov1<<"  b  "<<nv1<<"  c  ";
-        return std::make_tuple(*val1, *val2, *val3);
-    }
-}
-
-inline
-Successor compareAndSwap(Successor* address, Successor expected, Successor newValue) {
-    Successor result;
-    std::tuple t=compareAndSwap2(&(address->right),&(address->mark),&(address->flag),expected.right,expected.mark,expected.flag,newValue.right,newValue.mark,newValue.flag);
-    result.right= std::get<0>(t);
-    result.mark= std::get<1>(t);
-    result.flag= std::get<2>(t);
     return result;
 }
 
@@ -116,7 +114,10 @@ public:
         tail->backlink=nullptr;
 
         // Connect head and tail
-        head->succ.right=tail;
+        // std::cout<<"Debug: address of tail: "<<&tail<<"\n";
+        head->succ.set_right(tail);
+        // std::cout<<"Debug: address of head: "<<&head<<"\n";
+        // std::cout<<"Debug: address of tail: "<<(head->succ.get_right())<<"\n";
     }
 
     Node* Search(keytype k);

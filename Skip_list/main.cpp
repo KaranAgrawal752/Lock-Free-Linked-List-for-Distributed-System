@@ -1,4 +1,4 @@
-#include "lock_free_linked_list.hpp"
+#include "lock_free_skip_list.hpp"
 #include <iostream>
 #include <vector>
 #include <map>
@@ -8,6 +8,8 @@
 #include <fstream>
 #include <random>
 
+const int N=10;
+const int levels=10;
 
 using namespace std;
 std::mutex mtx;
@@ -17,7 +19,7 @@ void printAtomically(string message) {
     std::cout <<message<< std::endl;
 }
 struct ThreadArgs {
-    LockFreeLinkedList* linkedList;
+    LockFreeSkipList* skipList;
     int id;
     int oprn;
     keytype key;
@@ -27,14 +29,14 @@ void* threadFunction(void * args_ptr) {
     // cout<<"Debug: entered in thread function\n";
     ThreadArgs* args = static_cast<ThreadArgs*>(args_ptr);
     // Accessing univ_obj and invoc_obj from args
-    LockFreeLinkedList* linkedList = args->linkedList;
+    LockFreeSkipList* skipList = args->skipList;
     int id=args->id;
     int oprn=args->oprn;
     keytype key=args->key;
     // cout<<"Debug started the oprn of thread:"<<id<<"\n";
     if(oprn){
         // cout<<"Debug: thread:"<<id<<" going to insert the node\n";
-        Node * node=linkedList->Insert(key,key);
+        Node * node=skipList->Insert_SL(key,key);
         // cout<<"Debug: thread:"<<id<<" inserted the node\n";
         string message;
         if(node){
@@ -46,7 +48,7 @@ void* threadFunction(void * args_ptr) {
         printAtomically(message);
     }
     else{
-        Node* node=linkedList->Delete(key);
+        Node* node=skipList->Delete_SL(key);
         string message;
         if(node){
             message="Thread "+to_string(id)+" successfully deleted the key "+to_string(key)+".";
@@ -61,8 +63,7 @@ void* threadFunction(void * args_ptr) {
 
 int main() {
     cout<<"main started\n";
-    int N= 100;
-    LockFreeLinkedList* linkedList=new LockFreeLinkedList();
+    LockFreeSkipList* linkedList=new LockFreeSkipList(levels);
     vector<pthread_t> myThread(N);
     vector<int> oprns(N);//{1,1,1,1,0,0,0,1,1,0};
     vector<keytype> keys(N);//{1,2,3,4,2,5,2,3,9,9};
@@ -80,7 +81,7 @@ int main() {
         int random_number = dis(gen);
         keys[i]=random_number;
     }
-    // cout<<"Debug: Thread calling started\n";
+    cout<<"Debug: Thread calling started\n";
     for (int i = 0; i < N; i++) {
         ThreadArgs* args = new ThreadArgs{linkedList,i,oprns[i],keys[i]};
         if (pthread_create(&myThread[i], nullptr, threadFunction, args)) {

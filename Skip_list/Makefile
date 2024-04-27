@@ -1,5 +1,5 @@
 all:
-	g++  -pthread lock_free_linked_list.cpp  main.cpp -o program -latomic
+	g++  -pthread lock_free_skip_list.cpp  main.cpp -o program -latomic
 	./program
 
 

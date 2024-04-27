@@ -6,25 +6,29 @@
 #include <mutex>
 #include<iostream>
 #include<cstdint>
+#include<cstdlib>
 #include<tuple>
 
 #define keytype double
 #define eps 0.001
-// std::mutex mtx;
+#define Level int
+#define INT_MIN std::numeric_limits<int>::min()
+#define INT_MAX std::numeric_limits<int>::max()
 
-// User-defined atomic compare-and-swap function
+enum Status{
+    DELETED,
+    IN
+};
+
 
 struct Successor{
     public:
-    // struct Node* right=nullptr;
-    // bool mark=0;
-    // bool flag=0;
     unsigned long long packed_succ=0;
     void set_right(struct Node *right){
-        // std::cout<<right<<"\n";
-        unsigned long long val=(unsigned long long)right&(~(((unsigned long long)0xffff)<<48));
+
+        unsigned long long val;
+        val=(unsigned long long)right&(~(((unsigned long long)0xffff)<<48));
         packed_succ|=val;
-        // std::cout<<packed_succ<<"\n";
     }
     void set_mark(bool mark){
         if(mark){
@@ -42,7 +46,6 @@ struct Successor{
     }
     struct Node* get_right()
     {
-        // std::cout<<packed_succ<<"\n";
         unsigned long long val=packed_succ&(~(((unsigned long long)0xffff)<<48));
         return (struct Node*)val;
     }
@@ -58,17 +61,11 @@ struct Successor{
     }
 
     Successor(Node* ptr,int mrk, int flg){
-        // right=ptr;
-        // mark=mrk;
-        // flag=flg;
         set_right(ptr);
         set_flag(flg);
         set_mark(mrk);
     }
     Successor(){}
-    // bool operator==(const Successor other) const {
-    //     return (this->right==other.right && this->mark==other.mark && this->flag==other.flag);
-    // }
 };
 
 struct Node {
@@ -77,12 +74,16 @@ struct Node {
     keytype element;
     Node* backlink;
     Successor succ;
-    Node(keytype k, keytype e)
+    Node * up;
+    Node * down;
+    Node* tower_root;
+    Node(keytype k, keytype e=-1)
     {
         key=k;element=e;
     }
     Node(){}
 };
+
 
 template<typename T>
 T CAS(T* address, T expected, T newValue) {
@@ -98,40 +99,66 @@ T CAS(T* address, T expected, T newValue) {
     return result;
 }
 
-class LockFreeLinkedList {
+class LockFreeSkipList {
 public:
-    LockFreeLinkedList() {
-        // Create head node with key of negative infinity
-        head = new Node();
-        head->key = std::numeric_limits<int>::min();
-        head->succ=Successor();
-        head->backlink=nullptr;
+    LockFreeSkipList(int level) {
+        Node *curHead, *curTail;
+        Node *lastHead=nullptr, * lastTail=nullptr;
+        for(int i=level;i>=1;i--)
+        {
+            curHead=new Node();
+            curHead->key=INT_MIN;
+            curHead->succ=Successor();
+            curHead->backlink=nullptr;
 
-        // Create tail node with key of positive infinity
-        tail = new Node();
-        tail->key = std::numeric_limits<int>::max();
-        tail->succ=Successor();
-        tail->backlink=nullptr;
+            curTail=new Node();
+            curTail->key=INT_MAX;
+            curTail->succ=Successor();
+            curTail->backlink=nullptr;
 
-        // Connect head and tail
-        // std::cout<<"Debug: address of tail: "<<&tail<<"\n";
-        head->succ.set_right(tail);
-        // std::cout<<"Debug: address of head: "<<&head<<"\n";
-        // std::cout<<"Debug: address of tail: "<<(head->succ.get_right())<<"\n";
+            curHead->succ.set_right(curTail);
+
+            if(lastHead)
+                curHead->up=lastHead;
+            if(lastTail)
+                curTail->up=lastTail;
+            lastHead=curHead;
+            lastTail=curTail;
+        }
+        maxLevel=level;
+        head=lastHead;
+        while(curHead)
+        {
+            curTail=curHead->succ.get_right();
+            lastHead=curHead->up;
+            lastTail=curTail->up;
+            if(lastHead){
+                lastHead->down=curHead;
+                lastTail->down=curTail;
+            }
+            curHead=lastHead;
+        }
     }
 
-    Node* Search(keytype k);
-    Node* Insert(keytype k, keytype e);
-    Node* Delete(keytype k);
+    Node* Search_SL(keytype k);
+    Node* Insert_SL(keytype k, keytype e);
+    Node* Delete_SL(keytype k);
 
 
 private:
     Node* head;
     Node *tail;
+    int maxLevel;
     // std::mutex mtx;
 
-    std::pair<Node*, Node*> SearchFrom(keytype k, Node* currNode);
-    std::pair<Node*, bool> TryFlag(Node* prevNode, Node* targetNode);
+    std::pair<Node*, Node*> SearchToLevel_SL(keytype k, Level v);
+    std::pair<Node*,Level> FindStart_SL(Level v);
+    std::pair<Node*, Node*> SearchRight(keytype k, Node* currNode);
+
+    std::pair<Node*,Node*> InsertNode(Node* newNode, Node* prevNode, Node* nextNode);
+    Node* DeleteNode(Node* prevNode, Node* delNode);
+
+    std::tuple<Node*,Status, bool> TryFlagNode(Node* prevNode, Node* targetNode);
     void HelpFlagged(Node* prevNode, Node* delNode);
     void TryMark(Node* delNode);
     void HelpMarked(Node* prevNode, Node* delNode);
